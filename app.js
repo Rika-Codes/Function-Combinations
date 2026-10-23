@@ -17,14 +17,14 @@ const field=$(name+'-math');field.value=state[name]==='custom-'+name?state.custo
 field.addEventListener('input',()=>{stop();clearTimeout(timer);timer=setTimeout(()=>{try{const fn=FunctionInput.parse(field.value);customValues[name]=fn;state.custom[name]=field.value;state[name]='custom-'+name;$(name+'-error').textContent='';field.setAttribute('aria-invalid','false');reset();}catch(e){field.setAttribute('aria-invalid','true');$(name+'-error').textContent=e.message+' Showing the last valid function.';}},300);});
 }
 function persist(){try{localStorage.setItem('function-studio',JSON.stringify(state));}catch{}}
-function stop(){playing=false;$('play').textContent='▶ Play sweep';}
+function stop(){playing=false;$('play').textContent='Play';}
 function reset(){stop();cancelAnimationFrame(raf);raf=0;starts.clear();completed.clear();state.index=0;previous=0;for(const id of ['red','blue'])$(id).value=state[id];document.querySelectorAll('[data-op]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.op===state.op)));$('legend-result').textContent=state.op==='average'?'(f(x) + g(x)) / 2':['min','max'].includes(state.op)?`${state.op}(f(x), g(x))`:`f(x) ${symbols[state.op]} g(x)`;persist();updateDetails();draw();}
 function trigger(i,t){if(i<0||i>N)return;completed.delete(i);starts.set(i,t);}
 function schedule(){if(!raf)raf=requestAnimationFrame(frame);}
 function frame(t){raf=0;now=t;if(playing&&t>=nextAt){if(previous>=N){stop();}else{previous++;state.index=previous;trigger(previous,t);nextAt=t+duration()*.82;updateDetails();}}
 for(const [i,start]of starts)if(t>=start+duration()){completed.add(i);starts.delete(i);}
 draw();if(playing||starts.size)schedule();}
-$('play').onclick=()=>{if(playing){stop();return;}now=performance.now();if(state.index===N){completed.clear();starts.clear();state.index=0;}playing=true;previous=state.index;$('play').textContent='Ⅱ Pause';trigger(previous,now);nextAt=now+duration()*.82;updateDetails();schedule();};
+$('play').onclick=()=>{if(playing){stop();return;}now=performance.now();if(state.index===N){completed.clear();starts.clear();state.index=0;}playing=true;previous=state.index;$('play').textContent='Pause';trigger(previous,now);nextAt=now+duration()*.82;updateDetails();schedule();};
 $('restart').onclick=reset;
 $('scrub').oninput=()=>{stop();now=performance.now();const target=+$('scrub').value;if(target<previous){for(const i of completed)if(i>=target)completed.delete(i);for(const i of starts.keys())if(i>=target)starts.delete(i);trigger(target,now);}else{let count=0;for(let i=previous;i<=target;i++)if(!completed.has(i)&&!starts.has(i)){trigger(i,now+count*90/+$('speed').value);count++;}}
 state.index=target;previous=target;updateDetails();draw();schedule();};
@@ -32,7 +32,7 @@ document.querySelectorAll('[data-op]').forEach(b=>b.onclick=()=>{state.op=b.data
 $('speed').onchange=()=>{const t=performance.now();for(const i of starts.keys())starts.set(i,t);nextAt=t+duration()*.82;schedule();};
 function updateDetails(){const {x,a,b,r}=pair(state.index);$('scrub').value=state.index;$('xvalue').textContent=`x = ${x.toFixed(2)}`;$('equation').innerHTML=`<span class="red-text">${fmt(a)}</span> ${symbols[state.op]} <span class="blue-text">${b<0?'('+fmt(b)+')':fmt(b)}</span> = <span class="purple-text">${fmt(r)}</span>`;
 if(['average','min','max'].includes(state.op))$('equation').innerHTML=`${symbols[state.op]}(<span class="red-text">${fmt(a)}</span>, <span class="blue-text">${fmt(b)}</span>) = <span class="purple-text">${fmt(r)}</span>`;
-let detail=state.op==='add'?'Blue hops onto the tip of red. Both sticks stay visible inside the translucent purple result.':state.op==='subtract'?'Flip blue, then hop it onto red. The sticks stay visible; the purple rectangle shows the net height after cancellation.':state.op==='multiply'?`Blue scales red by ${fmt(b)}. Both sticks remain visible; purple shows the resulting height.`:Math.abs(b)<1e-9?'Blue is zero here. Division is undefined, so the purple function has a gap.':`Measure red in blue-sized pieces: ${fmt(a)} contains ${fmt(r)} signed blue units. Then divide both heights by ${fmt(b)}: blue becomes 1 and red becomes ${fmt(r)}. Purple shows that new height.`;
+let detail=state.op==='add'?'Blue hops onto the tip of red. Both sticks align at the same x; dotted blue remains visible where they overlap.':state.op==='subtract'?'Flip blue, then hop it onto red. Dotted blue overlaps red where the values cancel. Purple shows the net height.':state.op==='multiply'?`Blue scales red by ${fmt(b)}. Both sticks remain visible; purple shows the resulting height.`:Math.abs(b)<1e-9?'Blue is zero here. Division is undefined, so the purple function has a gap.':`Measure red in blue-sized pieces: ${fmt(a)} contains ${fmt(r)} signed blue units. Then divide both heights by ${fmt(b)}: blue becomes 1 and red becomes ${fmt(r)}. Purple shows that new height.`;
 if(state.op==='average')detail='The two tips move toward their midpoint. Purple is halfway between the red and blue values.';
 if(state.op==='min')detail='Compare the two heights. Purple follows the lower value at each input, including negative values.';
 if(state.op==='max')detail='Compare the two heights. Purple follows the higher value at each input.';
@@ -44,8 +44,8 @@ for(let i=0;i<=N;i++){
 const d=data[i],x=X(d.x),done=completed.has(i),start=starts.get(i),active=start!==undefined&&now>=start,p=active?clamp((now-start)/duration()):0,selected=i===state.index;
 const strength=selected?1:.55,offset=Math.min(3,(R-L)/N*.22);
 if(!Number.isFinite(d.a)||!Number.isFinite(d.b)){if(Number.isFinite(d.a))out+=seg(x-offset,z,x-offset,Y(d.a),'#df625b',2,.6);if(Number.isFinite(d.b))out+=seg(x+offset,z,x+offset,Y(d.b),'#528bc9',2,.6);if(selected)activePhase='Outside the real domain · gap';continue;}
-if(done){const finite=Number.isFinite(d.r),ar=(state.op==='multiply'||state.op==='divide')&&finite?d.r:d.a,bb=state.op==='add'||state.op==='subtract'?d.a:0,be=state.op==='subtract'?-d.b:state.op==='divide'&&finite?1:d.b;
-out+=overlay(x,d.r)+seg(x-offset,z,x-offset,Y(ar),'#df625b',selected?3:2,.85)+seg(x+offset,Y(bb),x+offset,Y(bb+be),'#528bc9',selected?3:2,.85);
+if(done||(active&&reduced)){const finite=Number.isFinite(d.r),ar=(state.op==='multiply'||state.op==='divide')&&finite?d.r:d.a,bb=state.op==='add'||state.op==='subtract'?d.a:0,be=state.op==='subtract'?-d.b:state.op==='divide'&&finite?1:d.b;
+out+=overlay(x,d.r)+seg(x,z,x,Y(ar),'#df625b',selected?4:3,.9)+seg(x,Y(bb),x,Y(bb+be),'#528bc9',selected?3:2,.95,'stroke-dasharray="3 4"');
 if(finite)out+=`<circle cx="${x}" cy="${Y(d.r)}" r="2.6" fill="#8c65c5"/>`;else out+=text(x,z-12,'×');continue;}
 if(!active){out+=seg(x-offset,z,x-offset,Y(d.a),'#df625b',selected?4:2,strength)+seg(x+offset,z,x+offset,Y(d.b),'#528bc9',selected?4:2,strength);continue;}
 if(reduced){out+=overlay(x,d.r)+seg(x-offset,z,x-offset,Y(d.a),'#df625b',3)+seg(x+offset,z,x+offset,Y(d.b),'#528bc9',3);continue;}
@@ -55,18 +55,19 @@ const sub=state.op==='subtract',flip=sub?ease(p/.25):0,hop=ease((p-(sub?.25:0))/
 const signedBlue=sub?-d.b:d.b;
 // Rigid rotation around blue's base; the hop then preserves its signed length.
 let dx=sub?Math.sin(angle)*d.b*(B-T)/(high-low):0,dy=sub?-Math.cos(angle)*d.b*(B-T)/(high-low):-d.b*(B-T)/(high-low);
-bx=x+offset;by0=z+(Y(d.a)-z)*hop-Math.sin(Math.PI*hop)*20;by1=by0+dy;
+ax=x-offset*(1-hop);bx=x+offset*(1-hop);by0=z+(Y(d.a)-z)*hop-Math.sin(Math.PI*hop)*20;by1=by0+dy;
 const merge=ease((p-.72)/.28);alpha=1;reveal=merge;
 out+=overlay(x,d.r,reveal);
-out+=seg(ax,ay0,ax,ay1,'#df625b',4,alpha)+seg(bx,by0,bx+dx,by1,'#528bc9',4,alpha);
+out+=seg(ax,ay0,ax,ay1,'#df625b',4,alpha)+seg(bx,by0,bx+dx,by1,'#528bc9',3,alpha,'stroke-dasharray="3 4"');
 if(i===state.index)activePhase=sub&&p<.25?'Flip blue → negate':p<.72?'Hop blue onto red':d.a*signedBlue<0?'Opposite directions cancel':'Combine → purple';
 }else if(['average','min','max'].includes(state.op)){
-const t=ease(p/.8);reveal=ease((p-.55)/.45);out+=overlay(x,d.r,reveal);
-out+=seg(ax,z,ax,Y(d.a),'#df625b',3,.8)+seg(bx,z,bx,Y(d.b),'#528bc9',3,.8);
+const t=ease(p/.8);ax=x-offset*(1-t);bx=x+offset*(1-t);reveal=ease((p-.55)/.45);out+=overlay(x,d.r,reveal);
+out+=seg(ax,z,ax,Y(d.a),'#df625b',3,.8)+seg(bx,z,bx,Y(d.b),'#528bc9',2,.9,'stroke-dasharray="3 4"');
 for(const [tip,color]of [[d.a,'#df625b'],[d.b,'#528bc9']])out+=`<circle cx="${x}" cy="${Y(tip+(d.r-tip)*t)}" r="3.5" fill="${color}"/>`;
 if(selected)activePhase=state.op==='average'?'Meet at the midpoint':state.op==='min'?'Choose the lower height':'Choose the higher height';
 }else{
 const t=ease((p-(state.op==='divide'?.35:.1))/(state.op==='divide'?.43:.7)),target=Number.isFinite(d.r)?d.r:d.a;
+ax=x-offset*(1-t);bx=x+offset*(1-t);
 if(state.op==='multiply'){ay1=Y(d.a+(target-d.a)*t);by0=z;by1=Y(d.b);}
 else if(Number.isFinite(d.r)){
 ay1=Y(d.a+(target-d.a)*t);by1=Y(d.b+(1-d.b)*t);
@@ -77,7 +78,7 @@ if(selected){const labelX=x<W/2?Math.min(R-105,x+14):Math.max(L+105,x-14),anchor
 }
 alpha=1;reveal=ease((p-.8)/.2);
 out+=overlay(x,d.r,reveal);
-out+=seg(ax,z,ax,ay1,'#df625b',4,alpha)+seg(bx,z,bx,by1,'#528bc9',4,alpha);
+out+=seg(ax,z,ax,ay1,'#df625b',4,alpha)+seg(bx,z,bx,by1,'#528bc9',3,alpha,'stroke-dasharray="3 4"');
 if(i===state.index)activePhase=state.op==='multiply'?'Scale red by blue':Number.isFinite(d.r)?p<.35?'Measure in blue units':p<.8?'Rescale both ÷ '+fmt(d.b):'Blue = 1 · red = quotient':'Zero divisor · gap';
 }
 if(Number.isFinite(d.r)&&reveal>0)out+=`<circle cx="${x}" cy="${Y(d.r)}" r="${3*reveal}" fill="#8c65c5"/>`;

@@ -5,7 +5,7 @@ const clamp=t=>Math.max(0,Math.min(1,t)),ease=t=>{t=clamp(t);return t*t*(3-2*t)}
 function names(){return order==='fg'?{inner:'g',outer:'f'}:{inner:'f',outer:'g'};}
 function values(at){const {inner,outer}=names();let u=functions[inner](at),y=Number.isFinite(u)?functions[outer](u):NaN;return{u,y};}
 function save(){try{localStorage.setItem('composition-studio',JSON.stringify({chosen,latex,order}));}catch{}}
-function stop(){playing=false;cancelAnimationFrame(raf);raf=0;$('co-play').textContent='▶ Play sweep';}
+function stop(){playing=false;cancelAnimationFrame(raf);raf=0;$('co-play').textContent='Play';}
 function reset(){stop();trail.clear();phase=0;detail();draw();save();}
 for(const k of ['f','g']){
 const select=$('co-'+k);select.innerHTML=Object.keys(presets).map(id=>`<option value="${id}">${{square:'x²',line:'x + 1',sine:'sin(x)',double:'2x',reciprocal:'1 / x',root:'√x'}[id]}</option>`).join('')+'<option value="custom">Custom function…</option>';select.value=chosen[k];
@@ -13,7 +13,7 @@ select.onchange=()=>{if(select.value==='custom'){$('co-'+k+'-math').focus();retu
 let timer;$('co-'+k+'-math').addEventListener('input',()=>{stop();clearTimeout(timer);timer=setTimeout(()=>{try{const input=$('co-'+k+'-math').value,fn=FunctionInput.parse(input);functions[k]=fn;chosen[k]='custom';latex[k]=input;select.value='custom';$('co-'+k+'-error').textContent='';$('co-'+k+'-math').setAttribute('aria-invalid','false');reset();}catch(e){$('co-'+k+'-error').textContent=e.message+' Keeping the last valid function.';$('co-'+k+'-math').setAttribute('aria-invalid','true');}},300);});
 }
 $('co-order').onchange=()=>{order=$('co-order').value;reset();};
-function animate(sweep){stop();phase=0;playing=sweep;if(sweep&&x>=3){x=-3;trail.clear();}if(sweep)$('co-play').textContent='Ⅱ Pause';start=performance.now();detail();function tick(t){raf=0;phase=clamp((t-start)/(reduced?120:sweep?2000:4600));draw();if(phase<1){raf=requestAnimationFrame(tick);return;}trail.set(+x.toFixed(2),values(x).y);draw();if(playing&&x<3){x=Math.min(3,+(x+.2).toFixed(2));start=t;phase=0;detail();raf=requestAnimationFrame(tick);}else stop();}raf=requestAnimationFrame(tick);}
+function animate(sweep){stop();phase=0;playing=sweep;if(sweep&&x>=3){x=-3;trail.clear();}if(sweep)$('co-play').textContent='Pause';start=performance.now();detail();function tick(t){raf=0;phase=clamp((t-start)/(reduced?120:sweep?2000:4600));draw();if(phase<1){raf=requestAnimationFrame(tick);return;}trail.set(+x.toFixed(2),values(x).y);draw();if(playing&&x<3){x=Math.min(3,+(x+.2).toFixed(2));start=t;phase=0;detail();raf=requestAnimationFrame(tick);}else stop();}raf=requestAnimationFrame(tick);}
 $('co-play').onclick=()=>playing?stop():animate(true);$('co-replay').onclick=()=>animate(false);$('co-clear').onclick=reset;
 $('co-x').oninput=()=>{const old=x;stop();x=+$('co-x').value;const count=Math.max(1,Math.ceil(Math.abs(x-old)/.1));for(let i=1;i<=count;i++){const at=+(old+(x-old)*i/count).toFixed(2);trail.set(at,values(at).y);}phase=0;detail();draw();};$('co-x').onchange=()=>animate(false);
 for(let i=1;i<=5;i++)$('co-step-'+i).onclick=()=>{stop();phase=[0,.19999,.39999,.59999,.79999,1][i];if(i===5)trail.set(+x.toFixed(2),values(x).y);draw();};

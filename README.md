@@ -15,6 +15,7 @@ The repository root must include:
     combination-plane.js
     transforms.js
     composition.js
+    navigation.js
     .nojekyll
     vendor/
         mathlive.js
@@ -31,3 +32,4 @@ Check that `vendor/mathlive.js` and `vendor/compute-engine.js` open beneath the 
 The supplied `.nojekyll` marker tells GitHub Pages to publish the files as a plain static website.
 
 Math libraries are bundled locally. No API keys or paid services are used. Their licenses are included under `vendor`.
+
