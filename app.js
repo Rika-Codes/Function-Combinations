@@ -32,20 +32,32 @@ document.querySelectorAll('[data-op]').forEach(b=>b.onclick=()=>{state.op=b.data
 $('speed').onchange=()=>{const t=performance.now();for(const i of starts.keys())starts.set(i,t);nextAt=t+duration()*.82;schedule();};
 function updateDetails(){const {x,a,b,r}=pair(state.index);$('scrub').value=state.index;$('xvalue').textContent=`x = ${x.toFixed(2)}`;$('equation').innerHTML=`<span class="red-text">${fmt(a)}</span> ${symbols[state.op]} <span class="blue-text">${b<0?'('+fmt(b)+')':fmt(b)}</span> = <span class="purple-text">${fmt(r)}</span>`;
 if(['average','min','max'].includes(state.op))$('equation').innerHTML=`${symbols[state.op]}(<span class="red-text">${fmt(a)}</span>, <span class="blue-text">${fmt(b)}</span>) = <span class="purple-text">${fmt(r)}</span>`;
-let detail=state.op==='add'?'Blue hops onto the tip of red. Both sticks align at the same x; dotted blue remains visible where they overlap.':state.op==='subtract'?'Flip blue, then hop it onto red. Dotted blue overlaps red where the values cancel. Purple shows the net height.':state.op==='multiply'?`Blue scales red by ${fmt(b)}. Both sticks remain visible; purple shows the resulting height.`:Math.abs(b)<1e-9?'Blue is zero here. Division is undefined, so the purple function has a gap.':`Measure red in blue-sized pieces: ${fmt(a)} contains ${fmt(r)} signed blue units. Then divide both heights by ${fmt(b)}: blue becomes 1 and red becomes ${fmt(r)}. Purple shows that new height.`;
+let detail=state.op==='add'?'Blue hops onto the tip of red. Both sticks align at the same x; only the overlapping portion of blue is dotted.':state.op==='subtract'?'Flip blue, then hop it onto red. Dotted blue overlaps red where the values cancel. Purple shows the net height.':state.op==='multiply'?`Blue scales red by ${fmt(b)}. Both sticks remain visible; purple shows the resulting height.`:Math.abs(b)<1e-9?'Blue is zero here. Division is undefined, so the purple function has a gap.':`Measure red in blue-sized pieces: ${fmt(a)} contains ${fmt(r)} signed blue units. Then divide both heights by ${fmt(b)}: blue becomes 1 and red becomes ${fmt(r)}. Purple shows that new height.`;
 if(state.op==='average')detail='The two tips move toward their midpoint. Purple is halfway between the red and blue values.';
 if(state.op==='min')detail='Compare the two heights. Purple follows the lower value at each input, including negative values.';
 if(state.op==='max')detail='Compare the two heights. Purple follows the higher value at each input.';
 if(!Number.isFinite(a)||!Number.isFinite(b))detail='One of the functions has no finite real value at this input. Its stick and the purple result have a gap here.';
 if(Number.isFinite(r)&&Math.abs(r)>12)detail+=' The result extends beyond the visible graph.';$('explanation').textContent=detail;}
 function renderStickMarks({data,X,Y,z,L,R,T,B,W,low,high,seg,overlay,text}){let out='';
+// Split blue only where the two vertical centerlines actually share a segment.
+function blueStroke(x0,y0,x1,y1,redX,redY0,redY1,width,opacity){
+ const solid=(a,b)=>seg(x0,a,x1,b,'#528bc9',width,opacity);
+ if(Math.abs(x0-redX)>.05||Math.abs(x1-redX)>.05)return solid(y0,y1);
+ const lo=Math.min(y0,y1),hi=Math.max(y0,y1),overlapLo=Math.max(lo,Math.min(redY0,redY1)),overlapHi=Math.min(hi,Math.max(redY0,redY1));
+ if(overlapHi-overlapLo<.05)return solid(y0,y1);
+ let markup='';
+ if(overlapLo>lo)markup+=solid(lo,overlapLo);
+ markup+=seg(x0,overlapLo,x1,overlapHi,'#528bc9',width,opacity,'stroke-dasharray="3 4"');
+ if(overlapHi<hi)markup+=solid(overlapHi,hi);
+ return markup;
+}
 let activePhase='Ready to combine';
 for(let i=0;i<=N;i++){
 const d=data[i],x=X(d.x),done=completed.has(i),start=starts.get(i),active=start!==undefined&&now>=start,p=active?clamp((now-start)/duration()):0,selected=i===state.index;
 const strength=selected?1:.55,offset=Math.min(3,(R-L)/N*.22);
 if(!Number.isFinite(d.a)||!Number.isFinite(d.b)){if(Number.isFinite(d.a))out+=seg(x-offset,z,x-offset,Y(d.a),'#df625b',2,.6);if(Number.isFinite(d.b))out+=seg(x+offset,z,x+offset,Y(d.b),'#528bc9',2,.6);if(selected)activePhase='Outside the real domain · gap';continue;}
 if(done||(active&&reduced)){const finite=Number.isFinite(d.r),ar=(state.op==='multiply'||state.op==='divide')&&finite?d.r:d.a,bb=state.op==='add'||state.op==='subtract'?d.a:0,be=state.op==='subtract'?-d.b:state.op==='divide'&&finite?1:d.b;
-out+=overlay(x,d.r)+seg(x,z,x,Y(ar),'#df625b',selected?4:3,.9)+seg(x,Y(bb),x,Y(bb+be),'#528bc9',selected?3:2,.95,'stroke-dasharray="3 4"');
+out+=overlay(x,d.r)+seg(x,z,x,Y(ar),'#df625b',selected?4:3,.9)+blueStroke(x,Y(bb),x,Y(bb+be),x,z,Y(ar),selected?3:2,.95);
 if(finite)out+=`<circle cx="${x}" cy="${Y(d.r)}" r="2.6" fill="#8c65c5"/>`;else out+=text(x,z-12,'×');continue;}
 if(!active){out+=seg(x-offset,z,x-offset,Y(d.a),'#df625b',selected?4:2,strength)+seg(x+offset,z,x+offset,Y(d.b),'#528bc9',selected?4:2,strength);continue;}
 if(reduced){out+=overlay(x,d.r)+seg(x-offset,z,x-offset,Y(d.a),'#df625b',3)+seg(x+offset,z,x+offset,Y(d.b),'#528bc9',3);continue;}
@@ -58,11 +70,11 @@ let dx=sub?Math.sin(angle)*d.b*(B-T)/(high-low):0,dy=sub?-Math.cos(angle)*d.b*(B
 ax=x-offset*(1-hop);bx=x+offset*(1-hop);by0=z+(Y(d.a)-z)*hop-Math.sin(Math.PI*hop)*20;by1=by0+dy;
 const merge=ease((p-.72)/.28);alpha=1;reveal=merge;
 out+=overlay(x,d.r,reveal);
-out+=seg(ax,ay0,ax,ay1,'#df625b',4,alpha)+seg(bx,by0,bx+dx,by1,'#528bc9',3,alpha,'stroke-dasharray="3 4"');
+out+=seg(ax,ay0,ax,ay1,'#df625b',4,alpha)+blueStroke(bx,by0,bx+dx,by1,ax,ay0,ay1,3,alpha);
 if(i===state.index)activePhase=sub&&p<.25?'Flip blue → negate':p<.72?'Hop blue onto red':d.a*signedBlue<0?'Opposite directions cancel':'Combine → purple';
 }else if(['average','min','max'].includes(state.op)){
 const t=ease(p/.8);ax=x-offset*(1-t);bx=x+offset*(1-t);reveal=ease((p-.55)/.45);out+=overlay(x,d.r,reveal);
-out+=seg(ax,z,ax,Y(d.a),'#df625b',3,.8)+seg(bx,z,bx,Y(d.b),'#528bc9',2,.9,'stroke-dasharray="3 4"');
+out+=seg(ax,z,ax,Y(d.a),'#df625b',3,.8)+blueStroke(bx,z,bx,Y(d.b),ax,z,Y(d.a),2,.9);
 for(const [tip,color]of [[d.a,'#df625b'],[d.b,'#528bc9']])out+=`<circle cx="${x}" cy="${Y(tip+(d.r-tip)*t)}" r="3.5" fill="${color}"/>`;
 if(selected)activePhase=state.op==='average'?'Meet at the midpoint':state.op==='min'?'Choose the lower height':'Choose the higher height';
 }else{
@@ -78,7 +90,7 @@ if(selected){const labelX=x<W/2?Math.min(R-105,x+14):Math.max(L+105,x-14),anchor
 }
 alpha=1;reveal=ease((p-.8)/.2);
 out+=overlay(x,d.r,reveal);
-out+=seg(ax,z,ax,ay1,'#df625b',4,alpha)+seg(bx,z,bx,by1,'#528bc9',3,alpha,'stroke-dasharray="3 4"');
+out+=seg(ax,z,ax,ay1,'#df625b',4,alpha)+blueStroke(bx,z,bx,by1,ax,z,ay1,3,alpha);
 if(i===state.index)activePhase=state.op==='multiply'?'Scale red by blue':Number.isFinite(d.r)?p<.35?'Measure in blue units':p<.8?'Rescale both ÷ '+fmt(d.b):'Blue = 1 · red = quotient':'Zero divisor · gap';
 }
 if(Number.isFinite(d.r)&&reveal>0)out+=`<circle cx="${x}" cy="${Y(d.r)}" r="${3*reveal}" fill="#8c65c5"/>`;
