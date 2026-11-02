@@ -33,3 +33,7 @@ The supplied `.nojekyll` marker tells GitHub Pages to publish the files as a pla
 
 Math libraries are bundled locally. No API keys or paid services are used. Their licenses are included under `vendor`.
 
+
+## Open a downloaded copy
+Extract the complete ZIP, keep the files and vendor folder together, and open index.html in a browser. No installation, server, or account is required. Sweep quickly combines the samples. In Full plane, changing the horizontal range or window width rebuilds the sample grid and clears the previous result.
+

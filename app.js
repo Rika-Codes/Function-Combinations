@@ -1,6 +1,6 @@
 (()=>{
 'use strict';
-const $=id=>document.getElementById(id),N=40,DX=6/N;
+const $=id=>document.getElementById(id);let N=40,range=3,fastSweep=false;
 const functions=[['sine','sin(x)',Math.sin],['line','x + 1',x=>x+1],['wave','2 + sin(x)',x=>2+Math.sin(x)],['cos','cos(x)',Math.cos],['square','x² / 2',x=>x*x/2],['x','x',x=>x],['half','0.5',()=>.5],['two','2',()=>2],['negative','−1',()=>-1],['zero','0',()=>0]];
 const symbols={add:'+',subtract:'−',multiply:'×',divide:'÷',average:'average',min:'min',max:'max'};
 let state={red:'sine',blue:'line',op:'add',index:0,custom:{}},customValues={},starts=new Map(),completed=new Set(),playing=false,raf=0,previous=0,nextAt=0,now=performance.now(),width=800,height=370;
@@ -8,8 +8,8 @@ const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
 const clamp=v=>Math.max(0,Math.min(1,v)),ease=t=>{t=clamp(t);return t*t*(3-2*t)},fmt=n=>!Number.isFinite(n)?'undefined':Math.abs(n)<.0005?'0':Number(n.toFixed(2)).toString();
 const value=(id,x)=>id.startsWith('custom-')?customValues[id.slice(7)]?.(x)??NaN:functions.find(f=>f[0]===id)[2](x);
 function combine(a,b){if(!Number.isFinite(a)||!Number.isFinite(b))return NaN;return state.op==='add'?a+b:state.op==='subtract'?a-b:state.op==='multiply'?a*b:state.op==='average'?(a+b)/2:state.op==='min'?Math.min(a,b):state.op==='max'?Math.max(a,b):Math.abs(b)<1e-9?NaN:a/b;}
-function pair(i){const x=-3+i*DX,a=value(state.red,x),b=value(state.blue,x);return{x,a,b,r:combine(a,b)};}
-function duration(){return (reduced?140:state.op==='divide'?2600:1350)/+$('speed').value;}
+function pair(i){const x=-range+i*2*range/N,a=value(state.red,x),b=value(state.blue,x);return{x,a,b,r:combine(a,b)};}
+function duration(){return (fastSweep?180:reduced?140:state.op==='divide'?2600:1350)/+$('speed').value;}
 for(const name of ['red','blue']){const el=$(name);el.innerHTML=functions.map(f=>`<option value="${f[0]}">${f[1]}</option>`).join('')+`<option value="custom-${name}">Custom function…</option>`;el.value=state[name];el.onchange=()=>{if(el.value==='custom-'+name){$(name+'-math').focus();return;}state[name]=el.value;$(name+'-math').value=FunctionInput.presetLatex[el.value];$(name+'-error').textContent='';$(name+'-math').setAttribute('aria-invalid','false');reset();};}
 try{const saved=JSON.parse(localStorage.getItem('function-studio')||'null');if(saved){for(const k of ['red','blue']){if(functions.some(f=>f[0]===saved[k]))state[k]=saved[k];else if(saved[k]==='custom-'+k&&saved.custom?.[k]){try{customValues[k]=FunctionInput.parse(saved.custom[k]);state[k]=saved[k];state.custom[k]=saved.custom[k];}catch{}}}if(symbols[saved.op])state.op=saved.op;}}catch{}
 for(const name of ['red','blue']){
@@ -17,19 +17,21 @@ const field=$(name+'-math');field.value=state[name]==='custom-'+name?state.custo
 field.addEventListener('input',()=>{stop();clearTimeout(timer);timer=setTimeout(()=>{try{const fn=FunctionInput.parse(field.value);customValues[name]=fn;state.custom[name]=field.value;state[name]='custom-'+name;$(name+'-error').textContent='';field.setAttribute('aria-invalid','false');reset();}catch(e){field.setAttribute('aria-invalid','true');$(name+'-error').textContent=e.message+' Showing the last valid function.';}},300);});
 }
 function persist(){try{localStorage.setItem('function-studio',JSON.stringify(state));}catch{}}
-function stop(){playing=false;$('play').textContent='Play';}
+function stop(){playing=false;fastSweep=false;$('sweep').textContent='Sweep';$('play').textContent='Play';}
 function reset(){stop();cancelAnimationFrame(raf);raf=0;starts.clear();completed.clear();state.index=0;previous=0;for(const id of ['red','blue'])$(id).value=state[id];document.querySelectorAll('[data-op]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.op===state.op)));$('legend-result').textContent=state.op==='average'?'(f(x) + g(x)) / 2':['min','max'].includes(state.op)?`${state.op}(f(x), g(x))`:`f(x) ${symbols[state.op]} g(x)`;persist();updateDetails();draw();}
 function trigger(i,t){if(i<0||i>N)return;completed.delete(i);starts.set(i,t);}
 function schedule(){if(!raf)raf=requestAnimationFrame(frame);}
-function frame(t){raf=0;now=t;if(playing&&t>=nextAt){if(previous>=N){stop();}else{previous++;state.index=previous;trigger(previous,t);nextAt=t+duration()*.82;updateDetails();}}
+function frame(t){raf=0;now=t;if(playing&&t>=nextAt){if(previous>=N){stop();}else{previous++;state.index=previous;trigger(previous,t);nextAt=t+(fastSweep?18:duration()*.82);updateDetails();}}
 for(const [i,start]of starts)if(t>=start+duration()){completed.add(i);starts.delete(i);}
 draw();if(playing||starts.size)schedule();}
 $('play').onclick=()=>{if(playing){stop();return;}now=performance.now();if(state.index===N){completed.clear();starts.clear();state.index=0;}playing=true;previous=state.index;$('play').textContent='Pause';trigger(previous,now);nextAt=now+duration()*.82;updateDetails();schedule();};
+$('sweep').onclick=()=>{if(fastSweep){stop();return;}stop();fastSweep=true;now=performance.now();if(state.index===N){completed.clear();starts.clear();state.index=0;}playing=true;previous=state.index;$('sweep').textContent='Pause sweep';$('play').textContent='Pause';trigger(previous,now);nextAt=now+18;updateDetails();schedule();};
 $('restart').onclick=reset;
+addEventListener('combination-window',event=>{range=event.detail.range;N=event.detail.count;$('scrub').max=N;document.querySelectorAll('#workspace-combinations .range-ends span:first-child').forEach(el=>el.textContent=fmt(-range));document.querySelectorAll('#workspace-combinations .range-ends span:last-child').forEach(el=>el.textContent=fmt(range));reset();});
 $('scrub').oninput=()=>{stop();now=performance.now();const target=+$('scrub').value;if(target<previous){for(const i of completed)if(i>=target)completed.delete(i);for(const i of starts.keys())if(i>=target)starts.delete(i);trigger(target,now);}else{let count=0;for(let i=previous;i<=target;i++)if(!completed.has(i)&&!starts.has(i)){trigger(i,now+count*90/+$('speed').value);count++;}}
 state.index=target;previous=target;updateDetails();draw();schedule();};
 document.querySelectorAll('[data-op]').forEach(b=>b.onclick=()=>{state.op=b.dataset.op;reset();});
-$('speed').onchange=()=>{const t=performance.now();for(const i of starts.keys())starts.set(i,t);nextAt=t+duration()*.82;schedule();};
+$('speed').onchange=()=>{const t=performance.now();for(const i of starts.keys())starts.set(i,t);nextAt=t+(fastSweep?18:duration()*.82);schedule();};
 function updateDetails(){const {x,a,b,r}=pair(state.index);$('scrub').value=state.index;$('xvalue').textContent=`x = ${x.toFixed(2)}`;$('equation').innerHTML=`<span class="red-text">${fmt(a)}</span> ${symbols[state.op]} <span class="blue-text">${b<0?'('+fmt(b)+')':fmt(b)}</span> = <span class="purple-text">${fmt(r)}</span>`;
 if(['average','min','max'].includes(state.op))$('equation').innerHTML=`${symbols[state.op]}(<span class="red-text">${fmt(a)}</span>, <span class="blue-text">${fmt(b)}</span>) = <span class="purple-text">${fmt(r)}</span>`;
 let detail=state.op==='add'?'Blue hops onto the tip of red. Both sticks align at the same x; only the overlapping portion of blue is dotted.':state.op==='subtract'?'Flip blue, then hop it onto red. Dotted blue overlaps red where the values cancel. Purple shows the net height.':state.op==='multiply'?`Blue scales red by ${fmt(b)}. Both sticks remain visible; purple shows the resulting height.`:Math.abs(b)<1e-9?'Blue is zero here. Division is undefined, so the purple function has a gap.':`Measure red in blue-sized pieces: ${fmt(a)} contains ${fmt(r)} signed blue units. Then divide both heights by ${fmt(b)}: blue becomes 1 and red becomes ${fmt(r)}. Purple shows that new height.`;
@@ -101,13 +103,13 @@ const W=width,H=height,L=W<500?45:58,R=W-25,T=35,B=H-45;
 const data=Array.from({length:N+1},(_,i)=>pair(i));
 const values=data.flatMap(d=>[d.a,d.b,Number.isFinite(d.r)&&Math.abs(d.r)<=12?d.r:0]).filter(Number.isFinite);
 let low=Math.min(0,...values),high=Math.max(0,...values),pad=Math.max(.8,(high-low)*.17);low-=pad;high+=pad;
-const X=x=>L+(x+3)/6*(R-L),Y=y=>B-(y-low)/(high-low)*(B-T),z=Y(0);
+const X=x=>L+(x+range)/(2*range)*(R-L),Y=y=>B-(y-low)/(high-low)*(B-T),z=Y(0);
 const seg=(x1,y1,x2,y2,color,stroke=3,opacity=1,extra='')=>`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="${stroke}" opacity="${opacity}" stroke-linecap="round" ${extra}/>`;
 const text=(x,y,t,anchor='middle',extra='')=>`<text x="${x}" y="${y}" text-anchor="${anchor}" ${extra}>${t}</text>`;
 const overlay=(x,r,amount=1)=>Number.isFinite(r)?`<rect data-result-overlay x="${x-Math.min(10,(R-L)/N*.43)}" y="${Math.min(z,Y(r))}" width="${Math.min(20,(R-L)/N*.86)}" height="${Math.max(1,Math.abs(Y(r)-z))}" fill="#8c65c5" opacity="${.28*amount}"/>`:'';
 let out=`<defs><clipPath id="bounds"><rect x="${L}" y="${T}" width="${R-L}" height="${B-T}"/></clipPath></defs>`;
 for(let i=0;i<=4;i++){let v=low+(high-low)*i/4,y=Y(v);out+=seg(L,y,R,y,'#eeefed',1)+text(L-10,y+4,fmt(v),'end');}
-for(let x of(W<500?[-3,0,3]:[-3,-2,-1,0,1,2,3]))out+=text(X(x),B+23,x);
+for(let x of(W<500?[-range,0,range]:Array.from({length:7},(_,i)=>-range+i*range/3)))out+=text(X(x),B+23,x);
 out+=text((L+R)/2,H-4,'x · input')+text(L,T-15,'output','start');
 out+=`<g clip-path="url(#bounds)">`+seg(L,z,R,z,'#c8ccd0',1);
 // Smooth original functions are deliberately faint: sticks carry the lesson.

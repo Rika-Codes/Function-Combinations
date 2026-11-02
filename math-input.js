@@ -17,4 +17,12 @@ function parse(latex){
  return evaluate;
 }
 globalThis.FunctionInput={parse,presetLatex};
+// Focus the editor even when the user clicks its empty padding or trailing space.
+for(const field of document.querySelectorAll('math-field')){
+ field.addEventListener('pointerdown',event=>{
+  if(event.composedPath().some(node=>node?.tagName==='BUTTON'))return;
+  field.focus();
+ },true);
+ field.addEventListener('click',()=>{if(document.activeElement!==field)field.focus();});
+}
 })();

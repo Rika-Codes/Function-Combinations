@@ -2,10 +2,11 @@
 const $=id=>document.getElementById(id);let data=null,cache=[],signature='',rangeX=5,rangeY=5,auto=true,width=760,height=440,view='sticks';
 const fmt=n=>!Number.isFinite(n)?'undefined':Math.abs(n)<.0001?'0':Math.abs(n)>=1e4?n.toExponential(1):String(+n.toFixed(2));
 function save(){try{localStorage.setItem('combination-view',JSON.stringify({rangeX,rangeY,auto}));}catch{}}
-function tab(which){view=which;for(const key of ['sticks','plane']){$('combo-'+key+'-tab').setAttribute('aria-selected',String(key===view));$('combo-'+key+'-panel').hidden=key!==view;}if(view==='plane')draw();}
+function tab(which){view=which;for(const key of ['sticks','plane']){$('combo-'+key+'-tab').setAttribute('aria-selected',String(key===view));$('combo-'+key+'-panel').hidden=key!==view;}configureSamples();if(view==='plane')draw();}
 for(const key of ['sticks','plane']){$('combo-'+key+'-tab').onclick=()=>tab(key);$('combo-'+key+'-tab').onkeydown=e=>{if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();const next=key==='sticks'?'plane':'sticks';tab(next);$('combo-'+next+'-tab').focus();}};}
+function configureSamples(){dispatchEvent(new CustomEvent('combination-window',{detail:{range:view==='plane'?rangeX:3,count:view==='plane'?Math.max(20,Math.min(120,Math.round((width-80)/22))):40}}));}
 function sync(){$('cp-range-x').value=rangeX;$('cp-range-y').value=rangeY;$('cp-auto').checked=auto;}
-for(const axis of ['x','y'])$('cp-range-'+axis).onchange=()=>{const n=Number($('cp-range-'+axis).value),max=axis==='x'?1000:1e6;if(!Number.isFinite(n)||n<.5||n>max){sync();return;}if(axis==='x'){rangeX=n;signature='';}else{rangeY=n;auto=false;}sync();draw();save();};
+for(const axis of ['x','y'])$('cp-range-'+axis).onchange=()=>{const n=Number($('cp-range-'+axis).value),max=axis==='x'?1000:1e6;if(!Number.isFinite(n)||n<.5||n>max){sync();return;}if(axis==='x'){rangeX=n;signature='';}else{rangeY=n;auto=false;}sync();configureSamples();draw();save();};
 $('cp-auto').onchange=()=>{auto=$('cp-auto').checked;draw();sync();save();};$('cp-fit').onclick=()=>{auto=true;signature='';draw();sync();save();};
 $('cp-preview').onchange=draw;
 function draw(){if(!data||view!=='plane')return;
@@ -24,13 +25,13 @@ out+=line(L,cy,R,cy,'#9ba2a8',1.3)+line(cx,T,cx,B,'#9ba2a8',1.3)+text(cx-8,cy+16
 out+=text(R-15,T+15,'I')+text(L+15,T+15,'II')+text(L+15,B-12,'III')+text(R-15,B-12,'IV');out+='<g clip-path="url(#cp-clip)">';
 for(const [series,color,dash]of [['a','#df625b',''],['b','#528bc9','stroke-dasharray="6 3"'],['r','#8c65c5','']]){let path='',pen=false,prev=null;const samples=series==='r'&&!$('cp-preview').checked?data.samples:cache;for(let i=0;i<samples.length;i++){const d=samples[i],n=d[series],pole=series==='r'&&data.state.op==='divide'&&prev&&prev.b*d.b<=0,hidden=series==='r'&&!$('cp-preview').checked&&!data.completed.has(i);if(hidden||!Number.isFinite(n)||Math.abs(n)>rangeY*2){pen=false;prev=d;continue;}if(pole||prev&&Math.abs(n-prev[series])>rangeY)pen=false;path+=(pen?'L':'M')+X(d.x)+','+Y(n);pen=true;prev=d;}out+=`<path data-plane-series="${series}" d="${path}" fill="none" stroke="${color}" stroke-width="${series==='r'?2.6:1.5}" opacity="${series==='r'?$('cp-preview').checked?.3:1:.2}" ${dash}/>`;}
 const seg=(x,y,a,b,c,stroke=3,opacity=1,extra='')=>line(x,y,a,b,c,stroke,`opacity="${opacity}" stroke-linecap="round" ${extra}`);
-const overlay=(x,r,amount=1)=>Number.isFinite(r)?`<rect data-result-overlay x="${x-Math.min(10,(R-L)*.15/(2*rangeX)*.43)}" y="${Math.min(cy,Y(r))}" width="${Math.min(20,(R-L)*.15/(2*rangeX)*.86)}" height="${Math.max(1,Math.abs(Y(r)-cy))}" fill="#8c65c5" opacity="${.28*amount}"/>`:'';
+const overlay=(x,r,amount=1)=>Number.isFinite(r)?`<rect data-result-overlay x="${x-Math.min(10,(R-L)/Math.max(1,data.samples.length-1)*.43)}" y="${Math.min(cy,Y(r))}" width="${Math.min(20,(R-L)/Math.max(1,data.samples.length-1)*.86)}" height="${Math.max(1,Math.abs(Y(r)-cy))}" fill="#8c65c5" opacity="${.28*amount}"/>`:'';
 out+=`<g data-plane-sticks>`+data.renderSticks({data:data.samples,X,Y,z:cy,L,R,T,B,W,low:-rangeY,high:rangeY*1,seg,overlay,text}).markup+'</g>';
 const selected=data.selected,px=X(selected.x);if(Math.abs(selected.x)<=rangeX)out+=line(px,T,px,B,'#9b8ead',1,'stroke-dasharray="3 5"');
 out+='</g>';$('combo-plane').innerHTML=`<svg viewBox="0 0 ${W} ${H}" aria-hidden="true">${out}</svg>`;
-$('cp-note').textContent=cache.some(d=>[d.a,d.b,d.r].some(n=>Number.isFinite(n)&&Math.abs(n)>rangeY))?'Some heights extend beyond this window. Increase the vertical range to inspect them.':'Sticks combine at matching inputs. Purple stays behind as you sweep; faint curves show the originals. Animated inputs span −3 to 3.';
+$('cp-note').textContent=cache.some(d=>[d.a,d.b,d.r].some(n=>Number.isFinite(n)&&Math.abs(n)>rangeY))?'Some heights extend beyond this window. Increase the vertical range to inspect them.':'Sticks combine at matching inputs. Purple stays behind as you sweep; faint curves show the originals. Samples span the visible horizontal range.';
 }
 try{const s=JSON.parse(localStorage.getItem('combination-view')||'null');if(s){if(s.rangeX>=.5&&s.rangeX<=1000)rangeX=s.rangeX;if(s.rangeY>=.5&&s.rangeY<=1e6)rangeY=s.rangeY;auto=s.auto!==false;}}catch{}
-sync();new ResizeObserver(entries=>{if(entries[0].contentRect.width){width=entries[0].contentRect.width;height=entries[0].contentRect.height;draw();}}).observe($('combo-plane'));
+sync();new ResizeObserver(entries=>{if(entries[0].contentRect.width){width=entries[0].contentRect.width;height=entries[0].contentRect.height;if(view==='plane')configureSamples();draw();}}).observe($('combo-plane'));
 window.CombinationPlane={update(next){data=next;if(view==='plane')draw();}};
 })();
