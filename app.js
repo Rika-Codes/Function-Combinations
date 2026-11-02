@@ -9,7 +9,7 @@ const clamp=v=>Math.max(0,Math.min(1,v)),ease=t=>{t=clamp(t);return t*t*(3-2*t)}
 const value=(id,x)=>id.startsWith('custom-')?customValues[id.slice(7)]?.(x)??NaN:functions.find(f=>f[0]===id)[2](x);
 function combine(a,b){if(!Number.isFinite(a)||!Number.isFinite(b))return NaN;return state.op==='add'?a+b:state.op==='subtract'?a-b:state.op==='multiply'?a*b:state.op==='average'?(a+b)/2:state.op==='min'?Math.min(a,b):state.op==='max'?Math.max(a,b):Math.abs(b)<1e-9?NaN:a/b;}
 function pair(i){const x=-range+i*2*range/N,a=value(state.red,x),b=value(state.blue,x);return{x,a,b,r:combine(a,b)};}
-function duration(){return (fastSweep?180:reduced?140:state.op==='divide'?2600:1350)/+$('speed').value;}
+function duration(){return (reduced?140:state.op==='divide'?2600:1350)/+$('speed').value;}
 for(const name of ['red','blue']){const el=$(name);el.innerHTML=functions.map(f=>`<option value="${f[0]}">${f[1]}</option>`).join('')+`<option value="custom-${name}">Custom function…</option>`;el.value=state[name];el.onchange=()=>{if(el.value==='custom-'+name){$(name+'-math').focus();return;}state[name]=el.value;$(name+'-math').value=FunctionInput.presetLatex[el.value];$(name+'-error').textContent='';$(name+'-math').setAttribute('aria-invalid','false');reset();};}
 try{const saved=JSON.parse(localStorage.getItem('function-studio')||'null');if(saved){for(const k of ['red','blue']){if(functions.some(f=>f[0]===saved[k]))state[k]=saved[k];else if(saved[k]==='custom-'+k&&saved.custom?.[k]){try{customValues[k]=FunctionInput.parse(saved.custom[k]);state[k]=saved[k];state.custom[k]=saved.custom[k];}catch{}}}if(symbols[saved.op])state.op=saved.op;}}catch{}
 for(const name of ['red','blue']){
