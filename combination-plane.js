@@ -7,6 +7,7 @@ for(const key of ['sticks','plane']){$('combo-'+key+'-tab').onclick=()=>tab(key)
 function configureSamples(){dispatchEvent(new CustomEvent('combination-window',{detail:{range:view==='plane'?rangeX:3,count:view==='plane'?Math.max(20,Math.min(120,Math.round((width-80)/22))):40}}));}
 function sync(){$('cp-range-x').value=rangeX;$('cp-range-y').value=rangeY;$('cp-auto').checked=auto;}
 for(const axis of ['x','y'])$('cp-range-'+axis).onchange=()=>{const n=Number($('cp-range-'+axis).value),max=axis==='x'?1000:1e6;if(!Number.isFinite(n)||n<.5||n>max){sync();return;}if(axis==='x'){rangeX=n;signature='';}else{rangeY=n;auto=false;}sync();configureSamples();draw();save();};
+for(const axis of ['x','y'])$('cp-range-'+axis).oninput=$('cp-range-'+axis).onchange;
 $('cp-auto').onchange=()=>{auto=$('cp-auto').checked;draw();sync();save();};$('cp-fit').onclick=()=>{auto=true;signature='';draw();sync();save();};
 $('cp-preview').onchange=draw;
 function draw(){if(!data||view!=='plane')return;
